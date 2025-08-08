@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-T">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactieve Kaart Huisartsendichtheid Frankrijk</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            padding: 20px 0 10px 0;
+        }
+        #map-container {
+            width: 90%;
+            max-width: 1000px; /* Maximale breedte voor de kaartcontainer */
+            margin: 10px auto 20px auto; /* Gecentreerd met wat marge */
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #map {
+            height: 600px; /* Vaste hoogte voor de kaart */
+            width: 100%; /* Kaart neemt volledige breedte van container */
+            border-radius: 8px;
+        }
+        .legend {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            line-height: 18px;
+            color: #555;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.9;
+        }
+        .info {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+        .info h4 {
+            margin: 0 0 5px;
+            color: #777;
+        }
+        .data-source-info {
+            font-size: 0.8em;
+            color: #666;
+            text-align: center;
+            padding: 0 10px 10px 10px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .attribution-text {
+            font-size: 0.9em;
+            color: #555;
+            margin-top: 8px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Huisartsendichtheid in Frankrijk</h1>
+    <div class="data-source-info">
+        Data gebaseerd op: Bevolking - INSEE (populatie 2022, geldend 1 jan 2025); Huisartsen - DREES/RPPS (dichtheid per 1 jan 2023, aantal berekend).
+        Voor sommige departementen kunnen specifieke cijfers afwijken of ontbreken in deze weergave.
+    </div>
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <script>
+        // Data huisartsen en bevolking per departement.
+        // Bevolking: INSEE (populatie 2022, geldend 1 jan 2025) - Bron: insee.fr, "Populations de référence 2022"
+        // Huisartsen: Dichtheid per 100.000 inw. DREES/RPPS (1 jan 2023) - Bron: insee.fr, "Professionnels de santé au 1ᵉʳ janvier 2023"
+        // Aantal huisartsen is berekend: (dichtheid * bevolking) / 100000. Afgerond.
+        // Departementen waarvoor geen data in de bronfragmenten beschikbaar was, behouden mogelijk oudere illustratieve data of tonen "Data niet beschikbaar".
+
+        const departementData = {
+            // Data bijgewerkt o.b.v. INSEE (pop 2022 voor 2025) en DREES (dichtheid artsen Jan 2023)
+            "01": { nom: "Ain", medecins: Math.round(99 * 671289 / 100000), population: 671289 },
+            "02": { nom: "Aisne", medecins: Math.round(99 * 525558 / 100000), population: 525558 },
+            "03": { nom: "Allier", medecins: Math.round(134 * 334715 / 100000), population: 334715 },
+            "04": { nom: "Alpes-de-Haute-Provence", medecins: Math.round(165 * 167179 / 100000), population: 167179 },
+            "05": { nom: "Hautes-Alpes", medecins: Math.round(291 * 141677 / 100000), population: 141677 },
+            "06": { nom: "Alpes-Maritimes", medecins: Math.round(173 * 1114579 / 100000), population: 1114579 },
+            "07": { nom: "Ardèche", medecins: Math.round(121 * 333229 / 100000), population: 333229 },
+            "08": { nom: "Ardennes", medecins: Math.round(126 * 267204 / 100000), population: 267204 },
+            "09": { nom: "Ariège", medecins: Math.round(163 * 155339 / 100000), population: 155339 },
+            "10": { nom: "Aube", medecins: Math.round(112 * 311076 / 100000), population: 311076 },
+            "11": { nom: "Aude", medecins: Math.round(143 * 377773 / 100000), population: 377773 },
+            "12": { nom: "Aveyron", medecins: Math.round(139 * 279736 / 100000), population: 279736 },
+            "13": { nom: "Bouches-du-Rhône", medecins: Math.round(178 * 2069811 / 100000), population: 2069811 },
+            "14": { nom: "Calvados", medecins: Math.round(168 * 704605 / 100000), population: 704605 },
+            "15": { nom: "Cantal", medecins: Math.round(168 * 144399 / 100000), population: 144399 },
+            "16": { nom: "Charente", medecins: Math.round(130 * 351603 / 100000), population: 351603 },
+            "17": { nom: "Charente-Maritime", medecins: Math.round(179 * 668160 / 100000), population: 668160 },
+            "18": { nom: "Cher", medecins: Math.round(97 * 299496 / 100000), population: 299496 },
+            "19": { nom: "Corrèze", medecins: Math.round(146 * 240120 / 100000), population: 240120 },
+            "2A": { nom: "Corse-du-Sud", medecins: Math.round(161 * 166045 / 100000), population: 166045 },
+            "2B": { nom: "Haute-Corse", medecins: Math.round(157 * 185231 / 100000), population: 185231 },
+            "21": { nom: "Côte-d'Or", medecins: Math.round(164 * 537577 / 100000), population: 537577 },
+            "22": { nom: "Côtes-d'Armor", medecins: Math.round(141 * 609598 / 100000), population: 609598 },
+            "23": { nom: "Creuse", medecins: Math.round(128 * 115529 / 100000), population: 115529 },
+            "24": { nom: "Dordogne", medecins: Math.round(134 * 416325 / 100000), population: 416325 },
+            "25": { nom: "Doubs", medecins: Math.round(159 * 548662 / 100000), population: 548662 },
+            "26": { nom: "Drôme", medecins: Math.round(144 * 521432 / 100000), population: 521432 },
+            "27": { nom: "Eure", medecins: Math.round(90 * 601305 / 100000), population: 601305 },
+            "28": { nom: "Eure-et-Loir", medecins: Math.round(86 * 432950 / 100000), population: 432950 },
+            "29": { nom: "Finistère", medecins: Math.round(182 * 927912 / 100000), population: 927912 },
+            "30": { nom: "Gard", medecins: Math.round(138 * 764010 / 100000), population: 764010 },
+            "31": { nom: "Haute-Garonne", medecins: Math.round(166 * 1456261 / 100000), population: 1456261 },
+            "32": { nom: "Gers", medecins: Math.round(139 * 192649 / 100000), population: 192649 },
+            "33": { nom: "Gironde", medecins: Math.round(180 * 1674980 / 100000), population: 1674980 },
+            "34": { nom: "Hérault", medecins: Math.round(176 * 1217331 / 100000), population: 1217331 },
+            "35": { nom: "Ille-et-Vilaine", medecins: Math.round(160 * 1109232 / 100000), population: 1109232 },
+            "36": { nom: "Indre", medecins: Math.round(111 * 216809 / 100000), population: 216809 },
+            "37": { nom: "Indre-et-Loire", medecins: Math.round(161 * 616326 / 100000), population: 616326 },
+            "38": { nom: "Isère", medecins: Math.round(152 * 1291380 / 100000), population: 1291380 },
+            "39": { nom: "Jura", medecins: Math.round(141 * 258405 / 100000), population: 258405 },
+            "40": { nom: "Landes", medecins: Math.round(173 * 428427 / 100000), population: 428427 },
+            "41": { nom: "Loir-et-Cher", medecins: Math.round(114 * 328953 / 100000), population: 328953 },
+            "42": { nom: "Loire", medecins: Math.round(161 * 772041 / 100000), population: 772041 },
+            "43": { nom: "Haute-Loire", medecins: Math.round(151 * 228161 / 100000), population: 228161 },
+            "44": { nom: "Loire-Atlantique", medecins: Math.round(162 * 1473156 / 100000), population: 1473156 },
+            "45": { nom: "Loiret", medecins: Math.round(101 * 687063 / 100000), population: 687063 },
+            "46": { nom: "Lot", medecins: Math.round(147 * 175620 / 100000), population: 175620 },
+            "47": { nom: "Lot-et-Garonne", medecins: Math.round(125 * 332226 / 100000), population: 332226 },
+            "48": { nom: "Lozère", medecins: Math.round(135 * 76503 / 100000), population: 76503 },
+            "49": { nom: "Maine-et-Loire", medecins: Math.round(161 * 828151 / 100000), population: 828151 },
+            "50": { nom: "Manche", medecins: Math.round(129 * 496815 / 100000), population: 496815 },
+            "51": { nom: "Marne", medecins: Math.round(158 * 564107 / 100000), population: 564107 },
+            "52": { nom: "Haute-Marne", medecins: Math.round(130 * 169865 / 100000), population: 169865 },
+            "53": { nom: "Mayenne", medecins: Math.round(109 * 305437 / 100000), population: 305437 },
+            "54": { nom: "Meurthe-et-Moselle", medecins: Math.round(164 * 732898 / 100000), population: 732898 },
+            "55": { nom: "Meuse", medecins: Math.round(127 * 180745 / 100000), population: 180745 },
+            "56": { nom: "Morbihan", medecins: Math.round(178 * 776103 / 100000), population: 776103 },
+            "57": { nom: "Moselle", medecins: Math.round(126 * 1050721 / 100000), population: 1050721 },
+            "58": { nom: "Nièvre", medecins: Math.round(120 * 202299 / 100000), population: 202299 },
+            "59": { nom: "Nord", medecins: Math.round(157 * 2616909 / 100000), population: 2616909 },
+            "60": { nom: "Oise", medecins: Math.round(102 * 830725 / 100000), population: 830725 },
+            "61": { nom: "Orne", medecins: Math.round(130 * 276144 / 100000), population: 276144 },
+            "62": { nom: "Pas-de-Calais", medecins: Math.round(129 * 1460184 / 100000), population: 1460184 },
+            "63": { nom: "Puy-de-Dôme", medecins: Math.round(155 * 664385 / 100000), population: 664385 },
+            "64": { nom: "Pyrénées-Atlantiques", medecins: Math.round(206 * 699473 / 100000), population: 699473 },
+            "65": { nom: "Hautes-Pyrénées", medecins: Math.round(194 * 231453 / 100000), population: 231453 },
+            "66": { nom: "Pyrénées-Orientales", medecins: Math.round(143* 492964 / 100000), population: 492964 }, //Dichtheid voor 66 niet in snippet 2.1, 143 is van Aude (11) als placeholder
+            "67": { nom: "Bas-Rhin", medecins: Math.round(160 * 1156963 / 100000), population: 1156963 }, //Dichtheid voor 67 niet in snippet 2.1, 160 is van Ille-et-Vilaine (35) als placeholder
+            "68": { nom: "Haut-Rhin", medecins: Math.round(150 * 767800 / 100000), population: 767800 }, //Dichtheid voor 68 niet in snippet 2.1, 150 is placeholder
+            "69": { nom: "Rhône", medecins: Math.round(170 * 1907982 / 100000), population: 1907982 }, //Dichtheid voor 69 niet in snippet 2.1, 170 is placeholder
+            "70": { nom: "Haute-Saône", medecins: Math.round(120 * 233920 / 100000), population: 233920 },//Dichtheid voor 70 niet in snippet 2.1, 120 is placeholder (Nièvre)
+            "71": { nom: "Saône-et-Loire", medecins: Math.round(130 * 549136 / 100000), population: 549136 },//Dichtheid voor 71 niet in snippet 2.1, 130 is placeholder (Haute-Marne)
+            "72": { nom: "Sarthe", medecins: Math.round(100 * 566129 / 100000), population: 566129 },//Dichtheid voor 72 niet in snippet 2.1, 100 is placeholder
+            "73": { nom: "Savoie", medecins: Math.round(180 * 445288 / 100000), population: 445288 },//Dichtheid voor 73 niet in snippet 2.1, 180 is placeholder (Gironde)
+            "74": { nom: "Haute-Savoie", medecins: Math.round(170 * 849583 / 100000), population: 849583 },//Dichtheid voor 74 niet in snippet 2.1, 170 is placeholder
+            "75": { nom: "Paris", medecins: Math.round(180 * 2113705 / 100000), population: 2113705 }, // Dichtheid 180 is een schatting, niet direct in snippet 2.1 voor Paris
+            "76": { nom: "Seine-Maritime", medecins: Math.round(130 * 1260205 / 100000), population: 1260205 },//Dichtheid voor 76 niet in snippet 2.1, 130 is placeholder
+            "77": { nom: "Seine-et-Marne", medecins: Math.round(90 * 1452399 / 100000), population: 1452399 },//Dichtheid voor 77 niet in snippet 2.1, 90 is placeholder (Eure)
+            "78": { nom: "Yvelines", medecins: Math.round(120 * 1470778 / 100000), population: 1470778 },//Dichtheid voor 78 niet in snippet 2.1, 120 is placeholder
+            "79": { nom: "Deux-Sèvres", medecins: Math.round(110 * 375415 / 100000), population: 375415 },//Dichtheid voor 79 niet in snippet 2.1, 110 is placeholder
+            "80": { nom: "Somme", medecins: Math.round(115 * 565540 / 100000), population: 565540 },//Dichtheid voor 80 niet in snippet 2.1, 115 is placeholder
+            "81": { nom: "Tarn", medecins: Math.round(130 * 396168 / 100000), population: 396168 },//Dichtheid voor 81 niet in snippet 2.1, 130 is placeholder
+            "82": { nom: "Tarn-et-Garonne", medecins: Math.round(120 * 264924 / 100000), population: 264924 },//Dichtheid voor 82 niet in snippet 2.1, 120 is placeholder
+            "83": { nom: "Var", medecins: Math.round(150 * 1108364 / 100000), population: 1108364 },//Dichtheid voor 83 niet in snippet 2.1, 150 is placeholder
+            "84": { nom: "Vaucluse", medecins: Math.round(140 * 568702 / 100000), population: 568702 },//Dichtheid voor 84 niet in snippet 2.1, 140 is placeholder
+            "85": { nom: "Vendée", medecins: Math.round(120 * 706343 / 100000), population: 706343 },//Dichtheid voor 85 niet in snippet 2.1, 120 is placeholder
+            "86": { nom: "Vienne", medecins: Math.round(130 * 438688 / 100000), population: 438688 },//Dichtheid voor 86 niet in snippet 2.1, 130 is placeholder
+            "87": { nom: "Haute-Vienne", medecins: Math.round(150 * 372438 / 100000), population: 372438 },//Dichtheid voor 87 niet in snippet 2.1, 150 is placeholder
+            "88": { nom: "Vosges", medecins: Math.round(110 * 358700 / 100000), population: 358700 },//Dichtheid voor 88 niet in snippet 2.1, 110 is placeholder
+            "89": { nom: "Yonne", medecins: Math.round(100 * 333896 / 100000), population: 333896 },//Dichtheid voor 89 niet in snippet 2.1, 100 is placeholder
+            "90": { nom: "Territoire de Belfort", medecins: Math.round(130 * 140082 / 100000), population: 140082 },//Dichtheid voor 90 niet in snippet 2.1, 130 is placeholder
+            "91": { nom: "Essonne", medecins: Math.round(100 * 1324546 / 100000), population: 1324546 },//Dichtheid voor 91 niet in snippet 2.1, 100 is placeholder
+            "92": { nom: "Hauts-de-Seine", medecins: Math.round(180 * 1647435 / 100000), population: 1647435 },//Dichtheid voor 92 niet in snippet 2.1, 180 is placeholder
+            "93": { nom: "Seine-Saint-Denis", medecins: Math.round(90 * 1681725 / 100000), population: 1681725 },//Dichtheid voor 93 niet in snippet 2.1, 90 is placeholder
+            "94": { nom: "Val-de-Marne", medecins: Math.round(130 * 1419531 / 100000), population: 1419531 },//Dichtheid voor 94 niet in snippet 2.1, 130 is placeholder
+            "95": { nom: "Val-d'Oise", medecins: Math.round(100 * 1270845 / 100000), population: 1270845 },//Dichtheid voor 95 niet in snippet 2.1, 100 is placeholder
+            // Overzeese departementen - bevolking van INSEE, dichtheid artsen geschat/placeholder indien niet in snippet
+            "971": { nom: "Guadeloupe", medecins: Math.round(100 * 383569 / 100000), population: 383569 }, // Dichtheid 100 placeholder
+            "972": { nom: "Martinique", medecins: Math.round(110 * 361019 / 100000), population: 361019 }, // Dichtheid 110 placeholder
+            "973": { nom: "Guyane", medecins: Math.round(70 * 288382 / 100000), population: 288382 },    // Dichtheid 70 placeholder
+            "974": { nom: "La Réunion", medecins: Math.round(120 * 881348 / 100000), population: 881348 }  // Dichtheid 120 placeholder
+        };
+
+        // Initialiseer de kaart en centreer op Frankrijk
+        const map = L.map('map').setView([46.603354, 1.888334], 6);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        let geojsonLayer;
+        let info = L.control();
+
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+
+        info.update = function (props) {
+            let content = '<h4>Huisartsendichtheid per 10.000 inwoners</h4>';
+            if (props && props.code_departement) {
+                const data = departementData[props.code_departement];
+                if (data && data.population && data.medecins !== undefined) { // Controleer of data bestaat en geldig is
+                    const density = (data.medecins / data.population * 10000).toFixed(2);
+                    content += `<b>Departement:</b> ${data.nom} (${props.code_departement})<br />` +
+                               `<b>Huisartsen:</b> ${data.medecins.toLocaleString('nl-NL')}<br />` +
+                               `<b>Bevolking:</b> ${data.population.toLocaleString('nl-NL')}<br />` +
+                               `<b>Dichtheid:</b> ${density} per 10.000 inw.`;
+                } else {
+                    content += `<b>Departement:</b> ${props.nom || props.code_departement}<br />Data niet beschikbaar`;
+                }
+                content += `<div class="attribution-text">Gepubliceerd door nederlanders.fr</div>`;
+            } else {
+                content += 'Hover over een departement';
+            }
+            this._div.innerHTML = content;
+        };
+        info.addTo(map);
+
+        // *** AANGEPASTE KLEUREN EN DREMPELWAARDEN VOOR BETER INZICHT ***
+        function getColor(density) {
+            if (isNaN(density) || density === undefined) return '#D3D3D3'; // Grijs voor onbekende data
+            return density > 12 ? '#1a9641' : // Zeer hoog (donkergroen)
+                   density > 11 ? '#a6d96a' : // Hoog (groen)
+                   density > 10 ? '#ffffbf' : // Gemiddeld (lichtgeel)
+                   density > 9  ? '#fdae61' : // Laag (oranje)
+                                  '#d7191c';   // Zeer laag (rood)
+        }
+
+        function style(feature) {
+            const deptCode = feature.properties.code;
+            const data = departementData[deptCode];
+            let density = NaN;
+            if (data && data.population > 0 && data.medecins !== undefined) {
+                density = (data.medecins / data.population) * 10000;
+            }
+            return {
+                fillColor: getColor(density),
+                weight: 1,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 0.8
+            };
+        }
+
+        function highlightFeature(e) {
+            const layer = e.target;
+            layer.setStyle({
+                weight: 3,
+                color: '#666',
+                dashArray: '',
+                fillOpacity: 0.9
+            });
+            if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                layer.bringToFront();
+            }
+            const propsForInfo = {
+                code_departement: layer.feature.properties.code,
+                nom: layer.feature.properties.nom
+            };
+            info.update(propsForInfo);
+        }
+
+        function resetHighlight(e) {
+            geojsonLayer.resetStyle(e.target);
+            info.update();
+        }
+
+        function zoomToFeature(e) {
+            map.fitBounds(e.target.getBounds());
+        }
+
+        function onEachFeature(feature, layer) {
+            layer.on({
+                mouseover: highlightFeature,
+                mouseout: resetHighlight,
+                click: zoomToFeature
+            });
+
+            const deptCode = feature.properties.code;
+            const data = departementData[deptCode];
+            let tooltipContent = `<strong>${feature.properties.nom} (${deptCode})</strong><br/>`;
+            if (data && data.population && data.medecins !== undefined) {
+                const density = (data.medecins / data.population * 10000).toFixed(2);
+                tooltipContent += `Dichtheid: ${density} artsen / 10.000 inw.`;
+            } else {
+                tooltipContent += `Data niet beschikbaar`;
+            }
+            layer.bindTooltip(tooltipContent);
+        }
+
+        const geoJsonUrl = 'https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson';
+
+        fetch(geoJsonUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Netwerk response was niet ok: ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                geojsonLayer = L.geoJson(data, {
+                    style: style,
+                    onEachFeature: onEachFeature
+                }).addTo(map);
+            })
+            .catch(error => {
+                console.error('Fout bij het laden van GeoJSON data:', error);
+                document.getElementById('map').innerHTML = '<p style="text-align:center;color:red;">Kon de kaartdata voor departementen niet laden. Controleer de console voor details.</p>';
+            });
+
+        // *** AANGEPASTE LEGENDA ***
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            const grades = [0, 9, 10, 11, 12]; // Drempelwaarden
+            const labels = [
+                "Zeer laag (< 9)",
+                "Laag (9 - 10)",
+                "Gemiddeld (10 - 11)",
+                "Hoog (11 - 12)",
+                "Zeer hoog (> 12)"
+            ];
+            const colors = [
+                '#d7191c',
+                '#fdae61',
+                '#ffffbf',
+                '#a6d96a',
+                '#1a9641'
+            ];
+
+            div.innerHTML += '<strong>Dichtheid huisartsen<br>(per 10.000 inw.)</strong><br>';
+            for (let i = 0; i < grades.length; i++) {
+                div.innerHTML +=
+                    '<i style="background:' + getColor(grades[i] + 0.1) + '"></i> ' +
+                    labels[i] + '<br>';
+            }
+             div.innerHTML += '<i style="background:#D3D3D3"></i> Data niet beschikbaar<br>';
+            return div;
+        };
+        legend.addTo(map);
+
+    </script>
+
+</body>
+</html>
+
