@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-T">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactieve Kaart Artsendichtheid Frankrijk</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; flex-direction: column; align-items: center; }
+        h1 { color: #333; text-align: center; padding: 20px 0 5px 0; }
+        #map-container { width: 90%; max-width: 1000px; margin: 10px auto 20px auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        #map-controls { background-color: #fff; padding: 10px; text-align: center; border-bottom: 1px solid #ddd; }
+        #map-controls button { padding: 8px 15px; margin: 0 5px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; }
+        #map-controls button.active { background-color: #08519c; color: white; border-color: #08519c; font-weight: bold; }
+        #map { height: 600px; width: 100%; }
+        .legend { padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: white; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; line-height: 18px; color: #555; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.9; }
+        .info { padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: white; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; }
+        .info h4 { margin: 0 0 5px; color: #777; }
+        .data-source-info { font-size: 0.8em; color: #666; text-align: center; padding: 0 10px 10px 10px; max-width: 800px; margin: 0 auto; }
+        .attribution-text { font-size: 0.9em; color: #555; margin-top: 8px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Artsendichtheid in Frankrijk - 2023</h1>
+    <div class="data-source-info">
+        Data gebaseerd op: DREES/Insee (1 jan 2023). Kies een weergave.
+    </div>
+    <div id="map-container">
+        <div id="map-controls">
+            <button id="btnHuisartsen">Alleen Huisartsen</button>
+            <button id="btnAlleArtsen" class="active">Alle Artsen (incl. Specialisten)</button>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script>
+        // Data voor beide weergaven
+        const populationData = { "01": 671289, "02": 525558, "03": 334715, "04": 167179, "05": 141677, "06": 1114579, "07": 333229, "08": 267204, "09": 155339, "10": 311076, "11": 377773, "12": 279736, "13": 2069811, "14": 704605, "15": 144399, "16": 351603, "17": 668160, "18": 299496, "19": 240120, "2A": 166045, "2B": 185231, "21": 537577, "22": 609598, "23": 115529, "24": 416325, "25": 548662, "26": 521432, "27": 601305, "28": 432950, "29": 927912, "30": 764010, "31": 1456261, "32": 192649, "33": 1674980, "34": 1217331, "35": 1109232, "36": 216809, "37": 616326, "38": 1291380, "39": 258405, "40": 428427, "41": 328953, "42": 772041, "43": 228161, "44": 1473156, "45": 687063, "46": 175620, "47": 332226, "48": 76503, "49": 828151, "50": 496815, "51": 564107, "52": 169865, "53": 305437, "54": 732898, "55": 180745, "56": 776103, "57": 1050721, "58": 202299, "59": 2616909, "60": 830725, "61": 276144, "62": 1460184, "63": 664385, "64": 699473, "65": 231453, "66": 492964, "67": 1156963, "68": 767800, "69": 1907982, "70": 233920, "71": 549136, "72": 566129, "73": 445288, "74": 849583, "75": 2113705, "76": 1260205, "77": 1452399, "78": 1470778, "79": 375415, "80": 565540, "81": 396168, "82": 264924, "83": 1108364, "84": 568702, "85": 706343, "86": 438688, "87": 372438, "88": 358700, "89": 333896, "90": 140082, "91": 1324546, "92": 1647435, "93": 1681725, "94": 1419531, "95": 1270845, "971": 383569, "972": 361019, "973": 288382, "974": 881348, "976": 310022 };
+        const densityData = {
+            huisartsen: { "01": 99, "02": 99, "03": 134, "04": 165, "05": 291, "06": 173, "07": 121, "08": 126, "09": 163, "10": 112, "11": 143, "12": 139, "13": 178, "14": 168, "15": 168, "16": 130, "17": 179, "18": 97, "19": 146, "2A": 161, "2B": 157, "21": 164, "22": 141, "23": 128, "24": 134, "25": 159, "26": 144, "27": 90, "28": 86, "29": 182, "30": 138, "31": 166, "32": 139, "33": 180, "34": 176, "35": 160, "36": 111, "37": 161, "38": 152, "39": 141, "40": 173, "41": 114, "42": 161, "43": 151, "44": 162, "45": 101, "46": 147, "47": 125, "48": 135, "49": 161, "50": 129, "51": 158, "52": 130, "53": 109, "54": 164, "55": 127, "56": 178, "57": 126, "58": 120, "59": 157, "60": 102, "61": 130, "62": 129, "63": 155, "64": 206, "65": 194, "66": 143, "67": 160, "68": 150, "69": 170, "70": 120, "71": 130, "72": 100, "73": 180, "74": 170, "75": 180, "76": 130, "77": 90, "78": 120, "79": 110, "80": 115, "81": 130, "82": 120, "83": 150, "84": 140, "85": 120, "86": 130, "87": 150, "88": 110, "89": 100, "90": 130, "91": 100, "92": 180, "93": 90, "94": 130, "95": 100, "971": 100, "972": 110, "973": 70, "974": 120, "976": 40 },
+            alle: { "75": 888, "05": 503, "69": 463, "06": 461, "13": 453, "34": 440, "33": 437, "66": 429, "64": 429, "21": 418, "31": 413, "67": 408, "54": 405, "87": 395, "37": 391, "73": 388, "14": 386, "94": 384, "92": 381, "63": 373, "29": 367, "51": 367, "35": 365, "974": 364, "80": 360, "25": 358, "59": 357, "44": 355, "86": 352, "2A": 350, "49": 350, "42": 345, "65": 343, "38": 337, "56": 334, "76": 333, "972": 332, "90": 331, "17": 326, "83": 324, "74": 320, "84": 319, "971": 319, "30": 310, "68": 302, "2B": 299, "40": 295, "26": 295, "04": 291, "11": 288, "19": 288, "15": 287, "81": 287, "03": 275, "71": 268, "78": 267, "09": 264, "57": 264, "22": 261, "46": 260, "12": 255, "50": 254, "62": 253, "16": 251, "47": 250, "82": 249, "88": 248, "39": 246, "43": 244, "24": 244, "973": 242, "08": 241, "91": 238, "93": 237, "07": 235, "61": 235, "72": 235, "48": 234, "52": 233, "41": 231, "45": 231, "10": 229, "95": 228, "32": 225, "70": 223, "79": 221, "58": 221, "85": 221, "23": 219, "89": 212, "02": 211, "60": 209, "55": 200, "18": 197, "36": 197, "77": 196, "28": 194, "53": 191, "01": 174, "27": 165, "976": 89 }
+        };
+
+        let currentView = 'alle'; // Startweergave
+        const map = L.map('map').setView([46.603354, 1.888334], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
+
+        let geojsonLayer;
+        let info = L.control();
+        let legend = L.control({position: 'bottomright'});
+
+        function getColor(density, view) {
+            if (isNaN(density) || density === undefined) return '#D3D3D3';
+            if (view === 'huisartsen') {
+                return density > 150 ? '#2c7bb6' : density > 130 ? '#abd9e9' : density > 115 ? '#ffffbf' : density > 105 ? '#fee090' : density > 95 ? '#fdae61' : density > 85 ? '#f46d43' : '#d73027';
+            } else { // 'alle'
+                return density > 500 ? '#08519c' : density > 400 ? '#3182bd' : density > 330 ? '#6baed6' : density > 280 ? '#bdd7e7' : density > 240 ? '#fee090' : density > 200 ? '#fdae61' : '#d73027';
+            }
+        }
+
+        function style(feature) {
+            const density = densityData[currentView][feature.properties.code];
+            return { fillColor: getColor(density, currentView), weight: 1, opacity: 1, color: 'white', dashArray: '3', fillOpacity: 0.8 };
+        }
+
+        info.onAdd = function (map) { this._div = L.DomUtil.create('div', 'info'); this.update(); return this._div; };
+        info.update = function (props) {
+            let content = `<h4>Dichtheid per 100.000 inw.</h4>`;
+            if (props && props.code_departement) {
+                const density = densityData[currentView][props.code_departement];
+                const population = populationData[props.code_departement];
+                const medecins = Math.round(density * population / 100000);
+                const typeArts = currentView === 'huisartsen' ? 'Huisartsen' : 'Totaal artsen';
+
+                if (density !== undefined) {
+                    content += `<b>Departement:</b> ${props.nom} (${props.code_departement})<br />` +
+                               `<b>${typeArts}:</b> ${medecins.toLocaleString('nl-NL')}<br />` +
+                               `<b>Bevolking:</b> ${population.toLocaleString('nl-NL')}<br />` +
+                               `<b>Dichtheid:</b> ${density}`;
+                } else { content += `<b>Departement:</b> ${props.nom || props.code_departement}<br />Data niet beschikbaar`; }
+                content += `<div class="attribution-text">Gepubliceerd door nederlanders.fr</div>`;
+            } else { content += 'Hover over een departement'; }
+            this._div.innerHTML = content;
+        };
+        info.addTo(map);
+
+        legend.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info legend');
+            this.update(currentView);
+            return this._div;
+        };
+        legend.update = function(view) {
+            const div = this._div;
+            div.innerHTML = ''; // Clear legend
+            let grades, labels, title;
+            if (view === 'huisartsen') {
+                grades = [0, 85, 95, 105, 115, 130, 150];
+                labels = ["Kritiek (<85)", "Zeer laag", "Laag", "Onder gem.", "Gemiddeld", "Hoog", "Zeer hoog (>150)"];
+                title = '<strong>Dichtheid Huisartsen</strong>';
+            } else { // 'alle'
+                grades = [0, 200, 240, 280, 330, 400, 500];
+                labels = ["Kritiek (<200)", "Zeer laag", "Laag", "Gemiddeld", "Bovengem.", "Hoog", "Zeer hoog (>500)"];
+                title = '<strong>Dichtheid Alle Artsen</strong>';
+            }
+            div.innerHTML += title + '<br>(per 100.000 inw.)<br>';
+            for (let i = 0; i < grades.length; i++) {
+                div.innerHTML += '<i style="background:' + getColor(grades[i] + 1, view) + '"></i> ' + labels[i] + '<br>';
+            }
+            div.innerHTML += '<i style="background:#D3D3D3"></i> Onbekend<br>';
+        };
+        legend.addTo(map);
+
+        function highlightFeature(e) { /* ... (code unchanged) ... */ }
+        function resetHighlight(e) { /* ... (code unchanged) ... */ }
+        function zoomToFeature(e) { /* ... (code unchanged) ... */ }
+        function onEachFeature(feature, layer) { /* ... (code unchanged, but tooltip will be dynamic) ... */ }
+
+        // --- Standard functions (minor changes for dynamic tooltips) ---
+        function highlightFeature(e) { const layer = e.target; layer.setStyle({ weight: 3, color: '#666', dashArray: '', fillOpacity: 0.9 }); if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) { layer.bringToFront(); } info.update({ code_departement: layer.feature.properties.code, nom: layer.feature.properties.nom }); }
+        function resetHighlight(e) { geojsonLayer.resetStyle(e.target); info.update(); }
+        function zoomToFeature(e) { map.fitBounds(e.target.getBounds()); }
+        function onEachFeature(feature, layer) {
+            layer.on({ mouseover: highlightFeature, mouseout: resetHighlight, click: zoomToFeature });
+            // Tooltip will be updated dynamically on view change
+        }
+        
+        function updateTooltips() {
+            geojsonLayer.eachLayer(function(layer) {
+                const props = layer.feature.properties;
+                const density = densityData[currentView][props.code];
+                let tooltipContent = `<strong>${props.nom} (${props.code})</strong><br/>`;
+                 if (density !== undefined) {
+                    tooltipContent += `Dichtheid: ${density}`;
+                } else {
+                    tooltipContent += `Data niet beschikbaar`;
+                }
+                layer.unbindTooltip().bindTooltip(tooltipContent);
+            });
+        }
+
+        const geoJsonUrl = 'https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson';
+        fetch(geoJsonUrl)
+            .then(response => response.json())
+            .then(data => {
+                geojsonLayer = L.geoJson(data, { style: style, onEachFeature: onEachFeature }).addTo(map);
+                updateTooltips(); // Set initial tooltips
+            })
+            .catch(error => { console.error('Fout bij het laden van GeoJSON data:', error); });
+
+        // --- Button Controls ---
+        const btnHuisartsen = document.getElementById('btnHuisartsen');
+        const btnAlleArtsen = document.getElementById('btnAlleArtsen');
+
+        function setView(view) {
+            currentView = view;
+            geojsonLayer.setStyle(style); // Recolor map
+            legend.update(view); // Update legend
+            updateTooltips(); // Update tooltips
+            // Update active button style
+            btnHuisartsen.classList.toggle('active', view === 'huisartsen');
+            btnAlleArtsen.classList.toggle('active', view === 'alle');
+        }
+
+        btnHuisartsen.addEventListener('click', () => setView('huisartsen'));
+        btnAlleArtsen.addEventListener('click', () => setView('alle'));
+    </script>
+</body>
+</html>
